@@ -1,0 +1,72 @@
+import plotly.subplots as ms
+import plotly.graph_objects as go
+import pandas_datareader as web
+import plotly.offline as offline
+from plotly import tools
+import pandas as pd
+
+def code(주가코드, 시작날짜, 끝날날짜):
+
+    c = web.naver.NaverDailyReader
+    d = c(주가코드, start=시작날짜, end=끝날날짜).read()
+    return d
+
+df = code('005930', '2020-12-30' , '2021-12-30')
+
+
+df['MA12'] = df['Close'].rolling(12).mean()
+df['MA26'] = df['Close'].rolling(26).mean()
+df['MACD'] = df['MA12'] - df['MA26']
+df['signal'] = df['MACD'].rolling(9).mean()
+df['MacdHist'] = df['MACD'] - df['signal']
+
+#캔들차트
+candle = go.Candlestick(
+	 x=df.index,
+	 open=df['Open'],
+	 high=df['High'],
+	 low=df['Low'],
+	 close=df['Close'],
+         increasing_line_color = 'red', # 상승봉 스타일링
+         decreasing_line_color = 'blue' # 하락봉 스타일링
+         )
+
+
+#이동평균선 생성-----------------------------------------------------------------
+ma12 = go.Scatter(x=df.index,
+                  y=df['MA12'],
+                  line=dict
+                  (color='black', width=1.0),
+                  name='ma12')
+
+ma26 = go.Scatter(x=df.index, y=df['MA26'],
+                  line=dict
+                  (color='green',
+                  width=1.0),
+                  name='ma26')
+
+fig = ms.make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02)
+
+ #macd,signal,mh객체 생성
+fig.add_trace(go.Histogram
+             (x=df.index,y=df['MacdHist'],
+
+             2 ))
+
+fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['MACD'],
+
+            line_color='dimgray',
+            opacity=0.8))
+
+fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['signal'],
+            line_color='deepskyblue',
+            opacity=0.8
+            ))
+
+
+fig.update_layout(title=dict(text="삼중창 스크린", x = 1.0))
+fig.show()
