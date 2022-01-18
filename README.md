@@ -1,2 +1,0 @@
-# stock
-help me ㅠㅠ
