@@ -1,0 +1,131 @@
+from multiprocessing.sharedctypes import Value
+import matplotlib.dates as mdates
+import pandas_datareader as web
+import datetime as date
+import matplotlib.pyplot as plt
+import pandas as pd
+from mpl_finance import candlestick_ohlc
+
+start = date.datetime(2021,6,1)
+end = date.datetime.now()
+
+# 주식 데이터 데이터 프레임으로 가져오기--------------------------------------------------------------------
+df = web.DataReader("068270.ks", 'yahoo', start, end)
+
+
+# 지수이동평균 값------------------------------------------------------------------------------------------
+ma13 = df['Close'].rolling(13).mean()
+ma26 = df['Close'].rolling(26).mean()
+
+
+
+# MACD, 오실레이터 값--------------------------------------------------------------------------------------
+macd = ma13 - ma26
+signal = macd.rolling(9).mean()
+osillator = macd - signal
+
+# RSI 값--------------------------------------------------------------------------------------------------
+delta = df['Close'].diff(1)
+delta.dropna(inplace=True)
+positive = delta.copy()
+negative = delta.copy()
+positive[positive < 0] = 0
+negative[negative > 0] = 0
+days = 14
+average_gain = positive.rolling(window=days).mean()
+average_loss = abs(negative.rolling(window=days).mean())
+relative_strength = average_gain / average_loss
+RSI = 100.0 - (100.0 / (1.0 + relative_strength))
+
+df = df.assign(ma13=ma13,ma26=ma26,macd=macd,signal=signal,osillator=osillator,RSI=RSI)
+
+df['number'] = df.index.map(mdates.date2num)
+ohlc = df[['number','Open','High','Low','Close']]
+df.dropna()
+# 주식 그래프화--------------------------------------------------------------------------------------------
+plt.figure(figsize=(9,9))
+p1 = plt.subplot(3, 1, 1)
+plt.title('Triple Screen Trading')
+plt.grid(True)
+p1.grid(True, color='#555555')
+
+
+
+
+# 주식을 캔들차트로 만들기 (임펄스 시스템 조건 걸기)
+candlestick_ohlc(p1, ohlc.values, width=.9, colorup='red', colordown='blue')
+p1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+p1.figure.set_facecolor('#121212')
+p1.tick_params(axis='x', colors='white')
+p1.tick_params(axis='y', colors='white')
+p1.set_facecolor('black')
+
+
+#매수매도 신호
+for i in range(1, len(df.Close)):
+    #매수신호
+    if df.osillator.values[i] > 0 and\
+       df.RSI.values[i] > 60 and\
+       df.macd.values[i-1] < df.macd.values[i] and\
+       df.signal.values[i-1] < df.signal.values[i] and\
+       df.ma13.values[i-1] < df.ma13.values[i] and\
+       df.ma26.values[i-1] < df.ma26.values[i]:
+        plt.plot(df.number.values[i], 20000, 'r^')
+    #매도신호
+    elif df.osillator.values[i] < 0 and\
+         df.RSI.values[i] < 60 and\
+         df.macd.values[i-1] > df.macd.values[i] and\
+         df.signal.values[i-1] > df.signal.values[i] and\
+         df.ma13.values[i-1] > df.ma13.values[i] and\
+         df.ma26.values[i-1] > df.ma26.values[i]:
+        plt.plot(df.number.values[i], 20000, 'bv')
+plt.legend(loc='best')
+
+
+# 주식 이동평균선
+plt.plot(df.number, df.ma13, color='lightgray', label='MA13')
+plt.plot(df.number, df.ma26, color='g', label='MA26')
+
+
+# 주식 MACD , SIGNAL , MACD
+p2 = plt.subplot(3, 1, 2)
+p2.set_facecolor('black')
+plt.grid(True)
+p2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+plt.bar(df.number, df.osillator, color='lightgray')
+plt.plot(df.number, df.macd, color='r')
+plt.plot(df.number, df.signal, 'g--')
+plt.legend(loc='best')
+p2.figure.set_facecolor('#121212')
+p2.tick_params(axis='x', colors='white')
+p2.tick_params(axis='y', colors='white')
+plt.legend(loc='best')
+
+# 주식 RSI강도지수
+p3 = plt.subplot(3, 1, 3)
+plt.grid(True)
+p3.set_facecolor('black')
+p3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+plt.plot(df.number, df.RSI, color='lightgray', label='RSI')
+p3.figure.set_facecolor('#121212')
+p3.tick_params(axis='x', colors='white')
+p3.tick_params(axis='y', colors='white')
+p3.axhline(0, linestyle='-', alpha=0.5, color='#ff0000')
+p3.axhline(10, linestyle='--', alpha=0.5, color='#ffaa00')
+p3.axhline(20, linestyle='--', alpha=0.5, color='#00ff00')
+p3.axhline(30, linestyle='--', alpha=0.5, color='#cccccc')
+p3.axhline(70, linestyle='--', alpha=0.5, color='#cccccc')
+p3.axhline(80, linestyle='--', alpha=0.5, color='#00ff00')
+p3.axhline(90, linestyle='--', alpha=0.5, color='#ffaa00')
+p3.axhline(100, linestyle='-', alpha=0.5, color='#ff0000')
+plt.legend(loc='best')
+
+
+    
+        
+# 임펄스 시스템
+#  (MACD,이동평균선,RSI)
+
+# 출력
+
+plt.show()
